@@ -69,6 +69,8 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
     velocity, altitude = zeros(total_steps), zeros(total_steps)
     # defines max_q, which will be used to track the maximum dynamic pressure experienced by the rocket during ascent
     max_q = 0.0
+    # defines a q_limit of 25000 Pa
+    q_limit = 25000.0
 
     # calculates the mdot(mass flow rate) using fuel_mass/burn_time
     mdot = fuel_mass / burn_time
@@ -87,6 +89,7 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
     # calculates the dynamic pressure(q) using q = 0.5 * rho * v^2
     # updates max_q if the current q is greater than max_q
     # calculates the drag force using drag_force = q * Cd * Area
+    # if max_q is larger than q_limit, the rocket breaks apart and the simulation ends
     # if the altitude is greater than 60000 m, it assumes the rocket has shed its fairing and updates the drag area to be the payload diameter
     # if the current step is within the burn time, it calculates the mass of the rocket by using the fuel consumed - initial mass, then calculates acceleration
     # else if the current step is after the burn time, it applies a penalty to the mass if max_q exceeded 15000 Pa, and calculates acceleration
@@ -100,6 +103,11 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
         Cd = calc_drag_coefficient(v, altitude[i-1])
         q = 0.5 * rho * v^2
         max_q = max(max_q, q)
+
+        if q > q_limit
+            return time[1:i-1], altitude[1:i-1], velocity[1:i-1], altitude[i-1], max_q
+        end
+
         drag_force = q * Cd * Area
 
         if altitude[i-1] > 60000
@@ -110,9 +118,7 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
             m = (dry_mass + fuel_mass) - (mdot * (i-1) * ti)
             acc = (thrust - drag_force) / m - g0
         else
-            penalty = (max_q > 15000) ? (max_q / 1000) : 0.0
-            m = (dry_mass * 0.4) + penalty
-            acc = -g0 - (drag_force / m)
+            acc = -g0 - (drag_force / dry_mass)
             if velocity[i-1] < 0 && altitude[i-1] < 5000
                 Cd = 1.5 
                 Area = 20.0 
@@ -132,15 +138,22 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
     return time, altitude, velocity, maximum(altitude), max_q
 end
 
+# Altitude Graph:
+# Plots a Graph of Altitude vs Time for all fuels
 function altitude_graph(fuels, burn_time=50)
-    plt = plot(title="Altitude vs Time for Different Rocket Fuels", xlabel="Time (s)", ylabel="Altitude (km)", legend=:topright, size=(1000, 600))
+    plt = plot(title="Altitude vs Time for Different Rocket Fuels", 
+                xlabel="Time (s)", ylabel="Altitude (km)", 
+                legend=:topright, size=(1000, 600))
     for fuel in fuels
-        time, altitude, _, _ = rocket_simulation(fuel.Isp, fuel.dry_mass, fuel.fuel_mass, fuel.Diameter, burn_time)
+        time, altitude, _, _, _ = rocket_simulation(fuel.Isp, fuel.dry_mass, fuel.fuel_mass, fuel.Diameter, burn_time)
         plot!(plt, time, altitude/1000, label="$(fuel.name) (Isp: $(fuel.Isp))", color=fuel.color)
     end
     display(plt)
 end
 
+# Sensitivity Analysis Graph:
+# Plots a Graph of Altitude vs Time for all fuels, but with the Isp now varied by ±10% 
+# This shows how sensitive the fuel is to changes in Isp
 function sensitivity_graph(fuels, burn_time=50)
     plt = plot(title="Sensitivity Analysis: Altitude with Isp ±10%", 
                xlabel="Time (s)", ylabel="Altitude (km)", 
@@ -162,6 +175,9 @@ function sensitivity_graph(fuels, burn_time=50)
     display(plt)
 end
 
+# Monte Carlo Simulation:
+# Runs a Monte Carlo simulation for each fuel, where the Isp and fuel mass are randomly varied by ±5% 
+# This simulates realistic variability in fuel performance
 function monte_carlo_simulation(fuels, burn_time=50, runs=100000)
     plt = plot(title="Monte Carlo Apogee Distribution ($runs runs)", 
                xlabel="Apogee Altitude (km)", ylabel="Frequency", 
@@ -183,6 +199,8 @@ function monte_carlo_simulation(fuels, burn_time=50, runs=100000)
     display(plt)
 end
 
+# Velocity Graph:
+# Plots a Graph of Velocity vs Time for all fuels
 function velocity_graph(fuels, burn_time=50)
     plt = plot(title="Velocity Profiles for All Fuels", 
                xlabel="Time (s)", ylabel="Velocity (m/s)", 
@@ -195,6 +213,8 @@ function velocity_graph(fuels, burn_time=50)
     display(plt)
 end
 
+# Acceleration Graph:
+# Plots a Graph of Acceleration vs Time for all fuels
 function acceleration_graph(fuels, burn_time=50)
     plt = plot(title="Acceleration Profiles for All Fuels", 
                xlabel="Time (s)", ylabel="Acceleration (m/s²)", 
@@ -211,7 +231,7 @@ function acceleration_graph(fuels, burn_time=50)
         coast_steps = Int(50 / ti)
         total_steps = time_steps + coast_steps
         
-        t_arr = range(0, (total_steps-1)*ti, length=total_steps)
+        time = range(0, (total_steps-1)*ti, length=total_steps)
         
         burn_mass = [(fuel.dry_mass + fuel.fuel_mass) - (mdot * (i-1) * ti) for i in 1:time_steps]
         coast_mass = fill(fuel.dry_mass, coast_steps)
@@ -226,11 +246,12 @@ function acceleration_graph(fuels, burn_time=50)
             end
         end
         
-        plot!(plt, t_arr, accel, label=fuel.name, color=fuel.color)
+        plot!(plt, time, accel, label=fuel.name, color=fuel.color)
     end
     display(plt)
 end
 
+# Runs all the graphs
 altitude_graph(fuels)
 sensitivity_graph(fuels)
 monte_carlo_simulation(fuels)
