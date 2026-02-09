@@ -80,6 +80,19 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
     # this simulates the change in shape of the rocket as it sheds its fairing and exposes the payload
     payload_diameter = 0.5 
 
+    # for loop, for every step:
+    # calculates the atmospheric density at the current altitude using calc_density()
+    # sets the velocity to the previous velocity, which will be updated in the loop
+    # calculates the drag coefficient using calc_drag_coefficient()
+    # calculates the dynamic pressure(q) using q = 0.5 * rho * v^2
+    # updates max_q if the current q is greater than max_q
+    # calculates the drag force using drag_force = q * Cd * Area
+    # if the altitude is greater than 60000 m, it assumes the rocket has shed its fairing and updates the drag area to be the payload diameter
+    # if the current step is within the burn time, it calculates the mass of the rocket by using the fuel consumed - initial mass, then calculates acceleration
+    # else if the current step is after the burn time, it applies a penalty to the mass if max_q exceeded 15000 Pa, and calculates acceleration
+    # if the velocity is negative and altitude is less than 5000 m, it simulates a parachute deploying by setting a high drag coefficient and area
+    # updates the velocity and altitude using the calculated acceleration and time interval
+    # if the altitude drops below 0, it sets the altitude and velocity to 0, simulating the rocket hitting the ground, and breaks the loop if this is after burn time
     for i in 2:total_steps
         rho = calc_density(altitude[i-1])
         v = velocity[i-1]
@@ -115,6 +128,7 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
         end
     end
     
+    # returns the time, altitude, velocity, maximum altitude, and maximum dynamic pressure
     return time, altitude, velocity, maximum(altitude), max_q
 end
 
