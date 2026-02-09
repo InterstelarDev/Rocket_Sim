@@ -2,14 +2,14 @@ using Plots, Statistics, Random
 
 #Fuels(Fuel Name, Specific, Dry mass, Fuel mass, Graph color, Diameter of rocket)
 const fuels = [
-    (name = "RP-1/LOX", Isp = 340, dry_mass = 120, fuel_mass = 350, color = :blue, Diameter = 0.7),
-    (name = "LCH4/LOX (Methane)", Isp = 375, dry_mass = 150, fuel_mass = 350, color = :green, Diameter = 1.0),
-    (name = "E-methane", Isp = 360, dry_mass = 150, fuel_mass = 350, color = :orange, Diameter = 1.0),
-    (name = "LH2/LOX (Hydrogen)", Isp = 452, dry_mass = 240, fuel_mass = 350, color = :red, Diameter = 2.2),
-    (name = "Green Hydrogen", Isp = 450, dry_mass = 240, fuel_mass = 350, color = :black, Diameter = 2.2),
-    (name = "UDMH/NTO", Isp = 315, dry_mass = 110, fuel_mass = 350, color = :brown, Diameter = 0.65),
-    (name = "Green Ammonia", Isp = 310, dry_mass = 135, fuel_mass = 350, color = :purple, Diameter = 0.85),
-    (name = "Solid (HTPB)", Isp = 285, dry_mass = 100, fuel_mass = 350, color = :gray, Diameter = 0.6)
+    (name = "RP-1/LOX", Isp = 340, dry_mass = 120, fuel_mass = 1200, color = :blue, Diameter = 0.8),
+    (name = "LCH4/LOX (Methane)", Isp = 375, dry_mass = 150, fuel_mass = 1400, color = :green, Diameter = 1.0),
+    (name = "E-methane", Isp = 360, dry_mass = 150, fuel_mass = 1400, color = :orange, Diameter = 1.0),
+    (name = "LH2/LOX (Hydrogen)", Isp = 452, dry_mass = 300, fuel_mass = 2500, color = :red, Diameter = 2.2),
+    (name = "Green Hydrogen", Isp = 450, dry_mass = 300, fuel_mass = 2500, color = :black, Diameter = 2.2),
+    (name = "UDMH/NTO", Isp = 315, dry_mass = 110, fuel_mass = 1000, color = :brown, Diameter = 0.7),
+    (name = "Green Ammonia", Isp = 310, dry_mass = 135, fuel_mass = 950, color = :purple, Diameter = 0.85),
+    (name = "Solid (HTPB)", Isp = 285, dry_mass = 100, fuel_mass = 2000, color = :gray, Diameter = 0.6)
 ]
 
 # Calculates atmospheric density using altitude
@@ -69,13 +69,15 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
     velocity, altitude = zeros(total_steps), zeros(total_steps)
     # defines max_q, which will be used to track the maximum dynamic pressure experienced by the rocket during ascent
     max_q = 0.0
-    # defines a q_limit of 25000 Pa
-    q_limit = 25000.0
+    # defines a q_limit of 100000 Pa
+    q_limit = 100000.0
+    # defines a safety margin of 5000 Pa, which will be used to throttle the rockt if pressure is greater than this
+    q_safety_margin = 5000.0
 
     # calculates the mdot(mass flow rate) using fuel_mass/burn_time
     mdot = fuel_mass / burn_time
     # calculates thrust using mdot * Isp * g0
-    thrust = mdot * Isp * g0
+    full_thrust = mdot * Isp * g0
     # calculates the cross-sectional area of the rocket
     Area = π * (Diameter / 2)^2
     # sets the payload diameter to 0.5 m, which will be used to calculate the drag area after burnout
@@ -92,7 +94,6 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
     # if max_q is larger than q_limit, the rocket breaks apart and the simulation ends
     # if the altitude is greater than 60000 m, it assumes the rocket has shed its fairing and updates the drag area to be the payload diameter
     # if the current step is within the burn time, it calculates the mass of the rocket by using the fuel consumed - initial mass, then calculates acceleration
-    # else if the current step is after the burn time, it applies a penalty to the mass if max_q exceeded 15000 Pa, and calculates acceleration
     # if the velocity is negative and altitude is less than 5000 m, it simulates a parachute deploying by setting a high drag coefficient and area
     # updates the velocity and altitude using the calculated acceleration and time interval
     # if the altitude drops below 0, it sets the altitude and velocity to 0, simulating the rocket hitting the ground, and breaks the loop if this is after burn time
@@ -108,6 +109,8 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
             return time[1:i-1], altitude[1:i-1], velocity[1:i-1], altitude[i-1], max_q
         end
 
+        current_thrust = (q > q_safety_margin && i <= time_steps) ? (full_thrust * 0.6) : full_thrust
+
         drag_force = q * Cd * Area
 
         if altitude[i-1] > 60000
@@ -116,7 +119,7 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
 
         if i <= time_steps
             m = (dry_mass + fuel_mass) - (mdot * (i-1) * ti)
-            acc = (thrust - drag_force) / m - g0
+            acc = (current_thrust - drag_force) / m - g0
         else
             acc = -g0 - (drag_force / dry_mass)
             if velocity[i-1] < 0 && altitude[i-1] < 5000
@@ -216,37 +219,15 @@ end
 # Acceleration Graph:
 # Plots a Graph of Acceleration vs Time for all fuels
 function acceleration_graph(fuels, burn_time=50)
-    plt = plot(title="Acceleration Profiles for All Fuels", 
+    plt = plot(title="Real-Time Acceleration (With Drag & Throttle)", 
                xlabel="Time (s)", ylabel="Acceleration (m/s²)", 
-               size=(1000, 600), lw=2)
-    
-    g0 = 9.81
-    ti = 0.1
+               size=(1200, 800), lw=2)
     
     for fuel in fuels
-        mdot = fuel.fuel_mass / burn_time
-        thrust = fuel.Isp * g0 * mdot
+        time, _, velocity, _, _ = rocket_simulation(fuel.Isp, fuel.dry_mass, fuel.fuel_mass, fuel.Diameter, burn_time)
+        accel = diff(velocity) ./ 0.1
         
-        time_steps = Int(burn_time / ti)
-        coast_steps = Int(50 / ti)
-        total_steps = time_steps + coast_steps
-        
-        time = range(0, (total_steps-1)*ti, length=total_steps)
-        
-        burn_mass = [(fuel.dry_mass + fuel.fuel_mass) - (mdot * (i-1) * ti) for i in 1:time_steps]
-        coast_mass = fill(fuel.dry_mass, coast_steps)
-        mass_profile = vcat(burn_mass, coast_mass)
-        
-        accel = zeros(total_steps)
-        for i in 1:total_steps
-            if i <= time_steps
-                accel[i] = (thrust / mass_profile[i]) - g0
-            else
-                accel[i] = -g0
-            end
-        end
-        
-        plot!(plt, time, accel, label=fuel.name, color=fuel.color)
+        plot!(plt, time[1:end-1], accel, label=fuel.name, color=fuel.color)
     end
     display(plt)
 end
