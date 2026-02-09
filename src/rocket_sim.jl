@@ -92,6 +92,8 @@ function rocket_simulation(Isp, dry_mass, fuel_mass, Diameter, burn_time=50)
     # updates max_q if the current q is greater than max_q
     # calculates the drag force using drag_force = q * Cd * Area
     # if max_q is larger than q_limit, the rocket breaks apart and the simulation ends
+    # if the dynamic pressure is greater than the safety margin and we are still in the burn phase, it throttles the thrust to 60% of full thrust
+    # else, it uses full thrust
     # if the altitude is greater than 60000 m, it assumes the rocket has shed its fairing and updates the drag area to be the payload diameter
     # if the current step is within the burn time, it calculates the mass of the rocket by using the fuel consumed - initial mass, then calculates acceleration
     # if the velocity is negative and altitude is less than 5000 m, it simulates a parachute deploying by setting a high drag coefficient and area
