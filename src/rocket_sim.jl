@@ -221,7 +221,7 @@ end
 # Acceleration Graph:
 # Plots a Graph of Acceleration vs Time for all fuels
 function acceleration_graph(fuels, burn_time=50)
-    plt = plot(title="Real-Time Acceleration (With Drag & Throttle)", 
+    plt = plot(title="Acceleration Profiles for All Fuels", 
                xlabel="Time (s)", ylabel="Acceleration (m/s²)", 
                size=(1200, 800), lw=2)
     
