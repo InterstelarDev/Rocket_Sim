@@ -183,7 +183,7 @@ end
 # Monte Carlo Simulation:
 # Runs a Monte Carlo simulation for each fuel, where the Isp and fuel mass are randomly varied by ±5% 
 # This simulates realistic variability in fuel performance
-function monte_carlo_simulation(fuels, burn_time=50, runs=100000)
+function monte_carlo_simulation(fuels, burn_time=50, runs=10000)
     plt = plot(title="Monte Carlo Apogee Distribution ($runs runs)", 
                xlabel="Apogee Altitude (km)", ylabel="Frequency", 
                size=(1000, 600))
