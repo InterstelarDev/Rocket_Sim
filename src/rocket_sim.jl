@@ -146,7 +146,7 @@ end
 # Altitude Graph:
 # Plots a Graph of Altitude vs Time for all fuels
 function altitude_graph(fuels, burn_time=50)
-    plt = plot(title="Altitude vs Time for Different Rocket Fuels", 
+    plt = plot(title="Altitude Profiles for All Fuels", 
                 xlabel="Time (s)", ylabel="Altitude (km)", 
                 legend=:topright, size=(1000, 600))
     for fuel in fuels
